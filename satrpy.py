@@ -1,11 +1,3 @@
-#satrpy.py
-test_data = [ "c The random seed used to shuffle this instance was seed=1755086696",
-              "p cnf 1200 4919",
-              "-35 491 -1180 0",
-              "479 1074 -949 0",
-              "609 1177 -67 0" ]
-
-
 class Variable:
   def __init__(self,name):
     self.pos = Literal(self, True)
@@ -43,7 +35,6 @@ class Formula:
     self.variables = variables
 
 def find_or_create_literal(num, variables):
-  
   if num.startswith("-"):
     neg = True
     num = num[1:]
@@ -62,30 +53,46 @@ def find_or_create_literal(num, variables):
     return var.pos
 
 
+import os
+def read_lines(inputfile):
+  f = os.open(inputfile, os.O_RDONLY, 0777)
+  x = os.read(f,1)
+  lines = []
+  tmpstr = ""
+  while x != '':
+    if x == '\n':
+      lines.append(tmpstr)
+      tmpstr = ""
+    else:
+      tmpstr += x
+    x = os.read(f,1)
+  
+  lines.append(tmpstr)
+  return lines
+
+
 def parse_to_formula(inputfile):
-  #f = open(inputfile)
+  lines = read_lines(inputfile)
+  print lines
   clauses = []
   variables = {}
-  for rec in test_data:
-     rec = rec.strip(' ')
-     lits = []
-     ## record has to start with a number or a minus sign
-     if (rec[0].isdigit()) or (rec[0].startswith("-")):
-        substrs = rec.split(' ')
-        for num in substrs:
-            num = num.strip(' ')
-            if num != '0':
-              lit = find_or_create_literal(num,variables)
-              lits.append(lit)
-
-        clauses.append(Clause(lits))
+  for rec in lines:
+    rec = rec.strip(' ')
+    if (rec[0] == 'c') or (rec[0] == 'p'):
+      continue
+    lits = []
+    for num in rec.split(' '):
+      num = num.strip(' ')
+      if num != '0':
+        lit = find_or_create_literal(num,variables)
+        lits.append(lit)
+    clauses.append(Clause(lits))
   return Formula(clauses,variables)
 
 def main(argv):
   inputfile = argv[1]
   formula = parse_to_formula(inputfile)
-  for c in formula.clauses:
-    print c.__str__()
+
   return 0
 
 def target(*args):
