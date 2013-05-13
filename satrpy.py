@@ -1,13 +1,14 @@
 from dimacs_parser import parse_to_formula
-from solver import dpll
 from solver import Solver
 
 def main(argv):
   inputfile = argv[1]
   formula = parse_to_formula(inputfile)
-  solver = Solver()
-  solver.dpll(formula)
+  print formula.__str__()
+  solver = Solver(formula)
+  trail = solver.dpll()
 
+  print trail.__str__()
   return 0
 
 def target(*args):

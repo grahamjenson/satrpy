@@ -1,10 +1,11 @@
 import collections
 
+def x(a):
+  return 1, a.__str__()
+
 def main(argv):
-  d = collections.OrderedDict()
-  d[1] = 'a'
-  d[2] = 'b'
-  print d
+  print x(1)
+  print x(None);
   return 0
 
 def target(*args):

@@ -4,29 +4,50 @@ class Variable:
   def __init__(self,name):
     self.pos = Literal(self, True)
     self.neg = Literal(self, False)
+    self.neg.neg = self.pos
+    self.pos.neg = self.neg
     self.name = name
 
 class Literal:
   def __init__(self,var, pos):
     self.var = var
     self.pos = pos
-    if self.pos:
-      self.neg = self.var.neg
-    else:
-      self.neg = self.var.pos
-
+    self.reason = None
+    self.assigned = False
     self.watches = []
 
-  def add_watch(confl):
+  def assign(self):
+    assert self.assigned == False
+    assert self.neg.assigned == False
+    self.assigned = True
+  
+  def unassign(self):
+    assert self.assigned == True
+    assert self.neg.assigned == False
+    self.assigned = False
+
+  def is_free(self):
+    return self.assigned == False and self.neg.assigned == False
+
+  def is_satisfied(self):
+    return self.assigned == True and self.neg.assigned == False
+
+  def is_falsified(self):
+    return self.assigned == False and self.neg.assigned == True  
+
+  def add_watch(self, confl):
     self.watches.append(confl)
 
-  def remove_watch(confl):
+  def remove_watch(self, confl):
     self.watches.remove(confl)
 
-  def propagate(trail):
-    while self.watches:
-      w = self.watches.pop()
+  def propagate(self, trail):
+    tmp = self.watches
+    self.watches = []
+    while tmp:
+      w = tmp.pop()
       if not w.propagate(trail,self):
+        self.watches += tmp 
         return w
     return None
 
@@ -48,10 +69,10 @@ class Clause:
     self.lits[0].neg.add_watch(self)
     self.lits[1].neg.add_watch(self)
 
-  def propagate(trail, p):
+  def propagate(self, trail, p):
     #make the lit one false, that way lit[0] will always be unit
     # so if -1 == p, then list will be [2,1,3,4] 
-    if self.lits[0] == p.neg
+    if self.lits[0] == p.neg:
       self.lits[0] = self.lits[1]
       self.lits[1] = p.neg
 
@@ -61,16 +82,17 @@ class Clause:
     # look for new literal to watch: no strategy
     for i, lit in enumerate(self.lits[2:]):
       i = i + 2 # manage the offset
-      if not trail.isFalsified(lit) {
+      if not lit.is_falsified():
         self.lits[1] = self.lits[i];
         self.lits[i] = p.neg;
         self.lits[1].neg.add_watch(self);
         return True; # not unit yet as 
 
-    assert trail.isFalsified(self.lits[1]);
+    assert self.lits[1].is_falsified();
     # the clause is now either unit or null
     p.add_watch(self)
-    return trail.enqueue(self.lits[0])
+    return trail.enqueue(self.lits[0],self)
+  
 
   def __str__(self):
     tmp = "["
@@ -95,94 +117,117 @@ class Formula:
       tmp+= delim + c.__str__()      
       delim = ' ,'
     tmp += "]"
-    return tmp
+    return tmp 
 
 
 #######################
 class Trail:
   def __init__(self):
-    self._vars = {} # fast lookup of assigned variables
     self._lit_order = [] #maintain order of assignments
     self._head = []
 
-  def add_to_tail(self):
-    self._vars[p.var] = p
+  def __str__(self):
+    tmp = "["
+    delim = ''
+    for l in self._lit_order:
+      tmp += delim
+      tmp += l.__str__()
+      delim = ', '
+    tmp += ']  ['
+    
+    delim = ''
+    for l in self._head:
+      tmp += delim
+      tmp += l.__str__()
+      delim = ', '
+    tmp += ']'
+    return tmp
+
+  def add_to_tail(self, p):
     self._lit_order.append(p)
 
   def pop_trail(self):
     p = self._lit_order.pop()
-    self._vars[p.var] = None
-    return p
+    p.unassign()
+    constr = p.reason
+    p.reason = None
+    return p, constr
 
   def head_length(self):
     return len(self._head)
   
   def clear_head(self):
+    for p in self._head:
+      p.reason = None
+      p.unassign()
     self._head = []
 
-  def pop_head(self):
-    return self._head.pop()
+  def inc_head(self):
+    p = self._head.pop()
+    self.add_to_tail(p)
+    return p
 
-  def lits(self):
-    return self._vars.keys()
-
-  def isFalsified(self,lit):
-    return self._vars[lit.var] == lit.neg
-
-  def isSatified(self, lit):
-    return self._vars[lit.var] == lit
-
-  def isFree(self, var):
-    return var not in self._vars
-
-  def enqueue(self,p):
-    if self.isFalsified(p):
+  def enqueue(self,p,constr):
+    if p is None:
+      return True
+    
+    if p.is_falsified():
       return False
+    elif p.is_satisfied():
+      return True
     else:
-      self.add_to_tail(p)
+      self._head.append(p)
+      p.reason = constr
+      p.assign()
       return True
 
-  def assume(self, lit):
-    return self._head.append(lit)
 
 #########################Solver
-class Solver
+class Solver:
   
   def __init__(self,formula):
     self.trail = Trail()
     self.formula = formula
 
   def dpll(self):
+    alit = self.decide()
+    self.trail.enqueue(alit,None)
     while self.trail.head_length() > 0:
       assert self.trail.head_length() == 1
-      confl = propagate()
-      if confl != None:
+      confl = self.propagate()
+      if confl is not None:
         self.trail.clear_head()
         self.analyze(confl)
       else:
-        assumed = self.assume()
-        self.trail.assume(v.pos)
+        alit = self.decide()
+        self.trail.enqueue(alit,None)
     
-  def analyze(confl):
+    return self.trail
+
+  def analyze(self, confl):
     #TODO backtrack till last decision
     #change decision, and give this conflict as the reason!
-    self.trail.pop_trail()
-    confl
+    p, reason = self.trail.pop_trail()
+    while reason is not None:
+      p, reason = self.trail.pop_trail()
+      
+    
+    self.trail.enqueue(p.neg, confl)
 
-  def propagate():
+
+  def propagate(self):
     #while there are still un propagated lits
     while self.trail.head_length() > 0:
-      p = self.trail.pop_head()  # get lit from top
+      p = self.trail.inc_head()
       confl = p.propagate(self.trail)
-      if confl != None: # propagate lit and return conflict if it breaks
+      if confl is not None: # propagate lit and return conflict if it breaks
         #the propagation didnt work
-        analyze(confl)
-
+        return confl
     return None
 
-  def choose():
-    for v in self.formula.variables:
-      if self.trail.isFree(v):
+  def decide(self):
+    for name, v in self.formula.variables.iteritems():
+      if v.pos.is_free():
         return v.pos
     return None
 
