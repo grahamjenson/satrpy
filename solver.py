@@ -146,6 +146,9 @@ class Trail:
   def add_to_tail(self, p):
     self._lit_order.append(p)
 
+  def size(self):
+    return len(self._lit_order)
+
   def pop_trail(self):
     p = self._lit_order.pop()
     p.unassign()
@@ -197,7 +200,8 @@ class Solver:
       confl = self.propagate()
       if confl is not None:
         self.trail.clear_head()
-        self.analyze(confl)
+        if self.analyze(confl) is None:
+          return None
       else:
         alit = self.decide()
         self.trail.enqueue(alit,None)
@@ -209,11 +213,13 @@ class Solver:
     #change decision, and give this conflict as the reason!
     p, reason = self.trail.pop_trail()
     while reason is not None:
-      p, reason = self.trail.pop_trail()
-      
-    
-    self.trail.enqueue(p.neg, confl)
+      if self.trail.size() != 0:
+        p, reason = self.trail.pop_trail()
+      else:
+        return None
 
+    self.trail.enqueue(p.neg, confl)
+    return None
 
   def propagate(self):
     #while there are still un propagated lits

@@ -1,3 +1,4 @@
 *-c
 *.pyc
+*.cnf
 translate.py

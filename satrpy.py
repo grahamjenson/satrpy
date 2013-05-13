@@ -7,8 +7,11 @@ def main(argv):
   print formula.__str__()
   solver = Solver(formula)
   trail = solver.dpll()
-
-  print trail.__str__()
+  if trail is not None:
+    print trail.__str__()
+    print 'SATISFIABLE'
+  else:
+    print 'UNSATISFIABLE'
   return 0
 
 def target(*args):
