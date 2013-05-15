@@ -1,16 +1,32 @@
-import collections
+#!/usr/bin/python
+import os
+import shutil
+import sys
+import argparse
+import random 
+import time,datetime
+import subprocess
 
-def x(a):
-  return 1, a.__str__()
 
-def main(argv):
-  print x(1)
-  print x(None);
-  return 0
+#initial system
+#time, request, system, 
+  
+def main():
+  satdir = './cnfs/sat'
+  unsatdir = './cnfs/unsat'
 
-def target(*args):
-  return main, None
+  parser = argparse.ArgumentParser(prog="test solver", description='Test solver')
+  parser.add_argument('-s',"--solver",  type=str, required=True)
+  args = parser.parse_args()
 
-if __name__ == '__main__':
-  import sys
-  main(sys.argv)
+  for cnffile in os.listdir(satdir):
+    path = os.path.join(satdir,cnffile)
+    print "executing sat", path
+    process = subprocess.Popen(["./" + args.solver, path])
+    out, err = process.communicate()
+    print(out)
+  
+if __name__ == "__main__":
+  main()
+
+

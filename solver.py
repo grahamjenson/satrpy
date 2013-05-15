@@ -195,7 +195,9 @@ class Solver:
   def dpll(self):
     alit = self.decide()
     self.trail.enqueue(alit,None)
+
     while self.trail.head_length() > 0:
+      print self.trail.__str__()
       assert self.trail.head_length() == 1
       confl = self.propagate()
       if confl is not None:
@@ -219,7 +221,7 @@ class Solver:
         return None
 
     self.trail.enqueue(p.neg, confl)
-    return None
+    return confl
 
   def propagate(self):
     #while there are still un propagated lits
