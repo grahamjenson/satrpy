@@ -15,6 +15,13 @@ class Literal:
     self.reason = None
     self.assigned = False
     self.watches = []
+    self.h = 0
+
+  def heur(self):
+    return self.h
+
+  def inc_heur(self):
+    self.h -= 1
 
   def assign(self):
     assert self.assigned == False
@@ -121,10 +128,14 @@ class Formula:
 
 
 #######################
+from rheapq import heappush
+from rheapq import heappop
+
 class Trail:
   def __init__(self):
     self._lit_order = [] #maintain order of assignments
     self._head = []
+    self._order = []
 
   def __str__(self):
     tmp = "["
@@ -184,6 +195,24 @@ class Trail:
       p.assign()
       return True
 
+  def add_to_order(self,p):
+    heappush(self._order, p)
+
+  def decide(self):
+    lits = []
+    lit = heappop(self._order)
+    lits.append(lit)
+    while not lit.is_free():
+      if len(self._order) == 0:
+        return None
+      lit = heappop(self._order)
+      lits.append(lit)
+
+    for l in lits:
+      heappush(self._order, l)
+      #add lits back
+
+    return lit
 
 #########################Solver
 class Solver:
@@ -191,13 +220,15 @@ class Solver:
   def __init__(self,formula):
     self.trail = Trail()
     self.formula = formula
+    for name, v in self.formula.variables.items():
+      self.trail.add_to_order(v.pos)
+      self.trail.add_to_order(v.neg)
 
   def dpll(self):
-    alit = self.decide()
+    alit = self.trail.decide()
     self.trail.enqueue(alit,None)
 
     while self.trail.head_length() > 0:
-      print self.trail.__str__()
       assert self.trail.head_length() == 1
       confl = self.propagate()
       if confl is not None:
@@ -205,7 +236,7 @@ class Solver:
         if self.analyze(confl) is None:
           return None
       else:
-        alit = self.decide()
+        alit = self.trail.decide()
         self.trail.enqueue(alit,None)
     
     return self.trail
@@ -220,6 +251,8 @@ class Solver:
       else:
         return None
 
+    p.inc_heur()
+    
     self.trail.enqueue(p.neg, confl)
     return confl
 
@@ -232,13 +265,3 @@ class Solver:
         #the propagation didnt work
         return confl
     return None
-
-  def decide(self):
-    for name, v in self.formula.variables.iteritems():
-      if v.pos.is_free():
-        return v.pos
-    return None
-
-
-
-

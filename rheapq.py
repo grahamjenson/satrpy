@@ -133,7 +133,7 @@ from itertools import islice, count, imap, izip, tee, chain
 from operator import itemgetter
 
 def cmp_lt(x, y):
-    return x[0] < y[0]
+    return x.heur() < y.heur()
 
 def heappush(heap, item):
     """Push item onto heap, maintaining the heap invariant."""

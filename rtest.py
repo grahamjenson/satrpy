@@ -1,11 +1,24 @@
 from rheapq import heappush
 from rheapq import heappop
 from rheapq import heapreplace
-from rqueue import PriorityQueue 
+
 def main(argv):
-  que = PriorityQueue(100)
-  que.put(1)
-  print que.get()
+  h = []
+  a = [3, 'write spec']
+  heappush(h, [1, 'write code'])
+  heappush(h, [2, 'release product'])
+  heappush(h, a)
+  heappush(h, [4, 'create tests'])
+  
+  a[0] = 1
+  print h
+  print 'tt', heappop(h)
+  print h
+  print 'tt', heappop(h)
+  print h
+  print 'tt', heappop(h)
+  print h
+
   return 0
 
 def target(*args):
