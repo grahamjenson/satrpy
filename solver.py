@@ -1,4 +1,44 @@
+###########Utitlitis
+
+class Utils:
+  @staticmethod
+  def is_unit(nlits):
+    free = 0
+    for l in nlits:
+      if l.is_free() or l.is_satisfied():
+        free += 1
+      if free == 2:
+        return False
+    return free == 1
+
+  @staticmethod
+  def is_null(nlits):
+    for l in nlits:
+      if not l.is_falsified():
+        return False
+    return True
+
+  @staticmethod
+  def has_free_lit(nlits):
+    for l in nlits:
+      if l.is_free():
+        return True
+    return False
+
+  @staticmethod
+  def get_unit_lit(nlits):
+    assert Utils.is_unit(nlits)
+    return Utils.get_free_lit(nlits)
+
+  @staticmethod
+  def get_free_lit(nlits):
+    assert Utils.has_free_lit(nlits)
+    for l in nlits:
+      if l.is_free():
+        return l
+    assert False
 #################VARIABELES
+
 
 class Variable:
   def __init__(self,name):
@@ -32,7 +72,7 @@ class Literal:
   def unassign(self):
     assert self.assigned == True
     assert self.neg.assigned == False
-    print 'u', self.__str__()
+    #print 'u', self.__str__()
     self.assigned = False
 
   def is_free(self):
@@ -57,7 +97,7 @@ class Literal:
       w = tmp.pop()
       if not w.propagate(trail,self):
         self.watches += tmp
-        print 'l', w.__str__()
+        #print 'l', w.__str__()
         return w
     return None
 
@@ -67,7 +107,10 @@ class Literal:
       prefix = "-"
     tmp = prefix + str(self.var.name)
     if self.reason:
-      tmp += '[r]'
+      if self.reason.is_unit_clause():
+        tmp += '[U]'
+      else:
+        tmp += '[r]'
     if self.is_falsified():
       tmp += '[-]'
     elif self.is_satisfied():
@@ -90,18 +133,30 @@ class Constraint:
 
   def is_unit_clause(self):
     return False
+  
+  def is_unit(self):
+    return Utils.is_unit(self.lits)
+
+  def is_null(self):
+    return Utils.is_null(self.lits)
+
+  def get_unit_lit(self):
+    return Utils.get_unit_lit(self.lits)
+
+  def get_free_lit(self):
+    return Utils.get_free_lit(self.lits)
+
 
 class UnitClause(Constraint):
+
   def __init__(self,lits):
     assert len(lits) == 1
     self.lits = lits
     self.lits[0].neg.add_watch(self)
-    raise "asd"
 
   def propagate(self, trail, p):
-    assert p.neg == self.lits[0]
-    return trail.enqueue(self.lits[0], self)
-  
+    assert False # should always be true so never be propogated
+
   def is_unit_clause(self):
     return True
   
@@ -152,24 +207,13 @@ class Clause(Constraint):
     assert self.lits[1].is_falsified();
     # the clause is now either unit or null
     if not (self.is_unit() or self.is_null()):
-      print 'not null or unit', self.__str__()
+      #print 'not null or unit', self.__str__()
       assert False
 
     p.add_watch(self)
     return trail.enqueue(self.lits[0],self)
 
-  def is_unit(self):
-    free = 0
-    for l in self.lits:
-      if l.is_free() or l.is_satisfied():
-        free += 1
-    return free == 1
 
-  def is_null(self):
-    for l in self.lits:
-      if not l.is_falsified():
-        return False
-    return True
 ########################FORMULA
 class Formula:
   def __init__(self,clauses, variables):
@@ -216,10 +260,25 @@ class Trail:
   def add_to_tail(self, p):
     self._lit_order.append(p)
 
+  def peek(self):
+    return self._lit_order[-1]
+
+  def pop_till_unit(self):
+    while self.size() != 0:
+      if self.peek().reason is not None:
+        if self.peek().reason.is_unit_clause():
+          return
+      self.pop_trail()
+
   def size(self):
     return len(self._lit_order)
 
   def pop_trail(self):
+    if self.peek().reason is not None:
+      if self.peek().reason.is_unit_clause():
+        #print self.__str__()
+        return None,None
+
     p = self._lit_order.pop()
     p.unassign()
     constr = p.reason
@@ -230,10 +289,12 @@ class Trail:
     return len(self._head)
   
   def clear_head(self):
+    #print 'clear head', self.__str__()
     for p in self._head:
       p.reason = None
       p.unassign()
     self._head = []
+    #print 'after clear head', self.__str__()
 
   def inc_head(self):
     p = self._head.pop()
@@ -241,11 +302,10 @@ class Trail:
     return p
 
   def enqueue(self,p,constr):
+    #print 'enqueue', p.__str__(), 'because', constr.__str__()
     if p is None:
       return True
-    
     if p.is_falsified():
-      print 'e falsified',p.__str__()
       return False
     elif p.is_satisfied():
       return True
@@ -282,9 +342,9 @@ class Solver:
     self.formula = formula
     self.learnt = []
     #tis breaking on cnfs/sat/aim-100-3_4-yes1-1.cnf but only with this order
-    #for name, v in self.formula.variables.items():
-    for name in [24, 25, 26, 27, 20, 21, 22, 23, 28, 29, 4, 8, 59, 58, 55, 54, 57, 56, 51, 50, 53, 52, 88, 89, 82, 83, 80, 81, 86, 87, 84, 85, 3, 7, 100, 39, 38, 33, 32, 31, 30, 37, 36, 35, 34, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 2, 6, 99, 98, 91, 90, 93, 92, 95, 94, 97, 96, 11, 10, 13, 12, 15, 14, 17, 16, 19, 18, 48, 49, 46, 47, 44, 45, 42, 43, 40, 41, 1, 5, 9, 77, 76, 75, 74, 73, 72, 71, 70, 79, 78]:
-      v = self.formula.variables[name.__str__()]
+    for name, v in self.formula.variables.items():
+    #for name in [24, 25, 26, 27, 20, 21, 22, 23, 28, 29, 4, 8, 59, 58, 55, 54, 57, 56, 51, 50, 53, 52, 88, 89, 82, 83, 80, 81, 86, 87, 84, 85, 3, 7, 100, 39, 38, 33, 32, 31, 30, 37, 36, 35, 34, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 2, 6, 99, 98, 91, 90, 93, 92, 95, 94, 97, 96, 11, 10, 13, 12, 15, 14, 17, 16, 19, 18, 48, 49, 46, 47, 44, 45, 42, 43, 40, 41, 1, 5, 9, 77, 76, 75, 74, 73, 72, 71, 70, 79, 78]:
+      v = self.formula.variables[name]
       self.trail.add_to_order(v.pos)
       self.trail.add_to_order(v.neg)
 
@@ -306,44 +366,55 @@ class Solver:
     return self.trail
 
   def analyze(self, confl):
-    print 'analyze', confl.__str__()
-    assert confl.is_null() or confl.is_unit()
+    #print 'analyze conflist', confl.__str__()
     p, reason = self.trail.pop_trail()
-    nlits = self.simple_resolution(confl.lits, reason.lits)
-    print map(str,nlits)
+    if p is None:
+      return None
+    #print 'p', p
+    #print 'reason', reason.__str__()
+    if reason is None:
+      self.trail.enqueue(p.neg, confl)
+      return confl
+    else:
+      nlits = self.simple_resolution(confl.lits, reason.lits)
 
-    while not self.has_free_literal(nlits):
-      if reason:
-        ls = reason.lits
-      else:
-        ls = []
+    #print 'new conflict', map(str,nlits)
+    #print 'trail', self.trail.__str__()
+
+    while Utils.is_null(nlits):
+      #print 'trail', self.trail.__str__()
+      #print 'trail size', self.trail.size()
+      #print 'pop confl', map(str,nlits)
       if self.trail.size() != 0:
-        p, reason = self.trail.pop_trail()
+        p, r = self.trail.pop_trail()
+        if p is None:
+          return None
+        #print 'poped', p , reason.__str__()
       else:
-        print 'ran out', confl.__str__(), reason.__str__(), p.neg.__str__(), self.trail.__str__()
+        #print 'ran out nlits', map(str,nlits)
+        #print 'ran out confl', confl.__str__()
+        #print 'ran out reason', r.__str__()
+        #print 'ran out p', p.__str__()
+        #print 'ran out trail', self.trail.__str__()
         return None
 
-    
-    
-    c = create_constr(nlits)
-    #print 't', self.trail.__str__()
-    # #print 'p', p.neg.__str__()
-    # while not self.has_free_literal(nlits):
-    #   #print 'c', map(str, nlits)
-    #   print 't', self.trail.__str__() 
-    #   #print map(lambda x: x.is_free(), nlits)
-    #   p, reason = self.trail.pop_trail()
+
     
     c = self.create_constr(nlits)
-    if c is None:
-      print 'failed', self.trail
-      return None
-
     self.learnt.append(c)
 
-    self.trail.enqueue(p.neg, confl)
+    if c.is_unit_clause():
+      self.trail.pop_till_unit()
 
-    return confl
+    if c.is_unit():
+      unit_lit = c.get_unit_lit()
+      #print 'unit lit', unit_lit.__str__()
+      self.trail.enqueue(unit_lit, c) # fake propagate
+    else:
+      free_lit = c.get_free_lit()
+      #print 'free lit', free_lit
+      self.trail.enqueue(free_lit, None)
+    return c
 
 
   def has_falsidied_literal(self,lits):
@@ -361,15 +432,16 @@ class Solver:
   def create_constr(self, lits):
     l = len(lits)
     if l == 0:
-      print 'conflict'
+      #print 'conflict'
       return None
     elif l == 1:
-      print 'unit'
+      #print 'unit', map(str,lits)
       return UnitClause(lits)
     else:
       return Clause(lits)
 
   def simple_resolution(self,lits1,lits2):
+    #print map(str,lits1), map(str,lits2)
     nlits = []
     neg = False
     for l in lits1:
