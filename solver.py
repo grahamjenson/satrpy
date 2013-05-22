@@ -61,6 +61,12 @@ class Literal:
   def heur(self):
     return self.h
 
+  def reset_heur(self):
+    self.h = -1
+
+  def dec_heur(self):
+    self.h -= 1
+
   def inc_heur(self):
     self.h -= 1
 
@@ -274,15 +280,15 @@ class Trail:
       if self.peek().reason is not None:
         if self.peek().reason.is_unit_clause():
           return
-      self.pop_trail()
+      p,r = self.pop_trail()
+      #p.reset_heur()
 
   def pop_till_decision(self):
     while self.size() != 0:
       p, reason = self.pop_trail()
       if reason is None:
-        return
-      
-
+        break
+    return 
 
   def size(self):
     return len(self._lit_order)
@@ -330,7 +336,6 @@ class Trail:
       return True
 
   def add_to_order(self,p):
-    p.inc_heur()
     heappush(self._order, p)
 
   def decide(self):
@@ -357,7 +362,6 @@ class Solver:
     self.learnt = []
     #tis breaking on cnfs/sat/aim-100-3_4-yes1-1.cnf but only with this order
     for name, v in self.formula.variables.items():
-    #for name in [24, 25, 26, 27, 20, 21, 22, 23, 28, 29, 4, 8, 59, 58, 55, 54, 57, 56, 51, 50, 53, 52, 88, 89, 82, 83, 80, 81, 86, 87, 84, 85, 3, 7, 100, 39, 38, 33, 32, 31, 30, 37, 36, 35, 34, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 2, 6, 99, 98, 91, 90, 93, 92, 95, 94, 97, 96, 11, 10, 13, 12, 15, 14, 17, 16, 19, 18, 48, 49, 46, 47, 44, 45, 42, 43, 40, 41, 1, 5, 9, 77, 76, 75, 74, 73, 72, 71, 70, 79, 78]:
       v = self.formula.variables[name]
       self.trail.add_to_order(v.pos)
       self.trail.add_to_order(v.neg)
@@ -395,20 +399,11 @@ class Solver:
     #print 'trail', self.trail.__str__()
 
     while Utils.is_null(nlits):
-      #print 'trail', self.trail.__str__()
-      #print 'trail size', self.trail.size()
-      #print 'pop confl', map(str,nlits)
       if self.trail.size() != 0:
         p, r = self.trail.pop_trail()
         if p is None:
-          #print 'p is none', r.__str__()
           return None
       else:
-        #print 'ran out nlits', map(str,nlits)
-        #print 'ran out confl', confl.__str__()
-        #print 'ran out reason', r.__str__()
-        #print 'ran out p', p.__str__()
-        #print 'ran out trail', self.trail.__str__()
         return None
 
 
@@ -417,27 +412,15 @@ class Solver:
     self.learnt.append(c)
     c.learnt = True
     
-
-    if c.is_unit_clause():
-      self.trail.pop_till_unit()
-      #print 'created unit clause'
-      #print 'analyze conflist', confl.__str__()
-      #print 'reason', reason.__str__()
-      #print 'new clause', c.__str__()
-    else:
-      self.trail.pop_till_decision()
+    self.trail.pop_till_unit()
 
     if c.is_unit():
       unit_lit = c.get_unit_lit()
-      #print 'unit lit', unit_lit.__str__()
-      self.trail.enqueue(unit_lit, c) # fake propagate
+      self.trail.enqueue(unit_lit, c)
     else:
       free_lit = c.get_free_lit()
-      #print 'free lit', free_lit
       self.trail.enqueue(free_lit, None)
     
-    self.trail.pop_till_unit()
-
     return c
 
 
@@ -484,6 +467,8 @@ class Solver:
         continue
       else:
         nlits.append(l)
+        l.inc_heur()
+        l.neg.inc_heur()
 
     return nlits
 
