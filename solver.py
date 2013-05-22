@@ -1,6 +1,24 @@
 ###########Utitlitis
 
 class Utils:
+
+  @staticmethod
+  def has_duplicate_lits(nlits):
+    lits = []
+    for l in nlits:
+      if l in lits:
+        return True
+      else:
+        lits.append(l)
+    return False
+
+  @staticmethod
+  def is_tautology(nlits):
+    for l in nlits:
+      if l.neg in nlits:
+        return True
+    return False
+
   @staticmethod
   def is_unit(nlits):
     free = 0
@@ -57,6 +75,7 @@ class Literal:
     self.assigned = False
     self.watches = []
     self.h = 0
+    self.decision_level = -1
 
   def heur(self):
     return self.h
@@ -120,7 +139,7 @@ class Literal:
     if self.is_falsified():
       tmp += '[-]'
     elif self.is_satisfied():
-      tmp +='[+]'
+      tmp +='[+'+ str(self.decision_level) +']'
     else:
       tmp += '[?]'
     return tmp 
@@ -251,6 +270,7 @@ class Trail:
     self._lit_order = [] #maintain order of assignments
     self._head = []
     self._order = []
+    self._level = 0
 
   def __str__(self):
     tmp = "["
@@ -268,12 +288,23 @@ class Trail:
       delim = ', '
     tmp += ']'
     return tmp
+  def decision_level(self):
+    return self._level
 
   def add_to_tail(self, p):
     self._lit_order.append(p)
 
+  def size(self):
+    return len(self._lit_order)
+
+  def size_of_head(self):
+    return len(self._head)
+
   def peek(self):
     return self._lit_order[-1]
+  
+  def peek_head(self):
+    return self._head[-1]
 
   def pop_till_unit(self):
     while self.size() != 0:
@@ -290,8 +321,7 @@ class Trail:
         break
     return 
 
-  def size(self):
-    return len(self._lit_order)
+
 
   def pop_trail(self):
     if self.peek().reason is not None:
@@ -303,16 +333,18 @@ class Trail:
     p.unassign()
     constr = p.reason
     p.reason = None
+    if constr is None:
+      self._level -= 1
+    p.decision_level = -1
+
     return p, constr
 
-  def head_length(self):
-    return len(self._head)
-  
   def clear_head(self):
     #print 'clear head', self.__str__()
     for p in self._head:
       p.reason = None
       p.unassign()
+      p.decision_level = -1
     self._head = []
     #print 'after clear head', self.__str__()
 
@@ -332,6 +364,10 @@ class Trail:
     else:
       self._head.append(p)
       p.reason = constr
+      if constr is None:
+        self._level += 1
+      
+      p.decision_level = self._level
       p.assign()
       return True
 
@@ -370,13 +406,33 @@ class Solver:
     alit = self.trail.decide()
     self.trail.enqueue(alit,None)
 
-    while self.trail.head_length() > 0:
-      assert self.trail.head_length() == 1
+    while self.trail.size_of_head() > 0:
+      print self.trail
+      assert self.trail.size_of_head() == 1
       confl = self.propagate()
       if confl is not None:
-        self.trail.clear_head()
-        if self.analyze(confl) is None:
+        nlits = self.analyze(confl)
+        if nlits is None:
           return None
+        
+        self.trail.clear_head()
+        while Utils.is_null(nlits):
+            self.trail.pop_till_decision()
+
+       
+        
+        nconfl = self.create_constr(nlits)
+        self.learnt.append(nconfl)
+        nconfl.learnt = True
+        
+        print 'gen', nconfl.__str__()
+
+        if nconfl.is_unit_clause():
+          self.trail.pop_till_unit()
+
+        free_lit = nconfl.get_free_lit()
+        self.trail.enqueue(free_lit, nconfl)
+
       else:
         alit = self.trail.decide()
         self.trail.enqueue(alit,None)
@@ -384,57 +440,45 @@ class Solver:
     return self.trail
 
   def analyze(self, confl):
-    
-    p, reason = self.trail.pop_trail()
-    if p is None:
-      return None
-    #print 'p', p
-    
-    if reason is None:
-      self.trail.enqueue(p.neg, confl)
-      return confl
-    else:
-      nlits = self.simple_resolution(confl.lits, reason.lits)
+    if not confl.is_null():
+      print confl.__str__()
+      assert False;
+    print 'analyze', confl.__str__()
+    print 'trail', self.trail.__str__()
 
-    #print 'trail', self.trail.__str__()
+    nlits = [] + confl.lits
+    max_level = self.max_decision_level(nlits)
+    seen = []
+    assert max_level >= self.trail.decision_level()
+    while max_level >= self.trail.decision_level():
+      print  max_level
+      pivot = self.find_pivot(nlits,max_level)
+      if pivot in seen:
+        break
+      seen.append(pivot)
+      seen.append(pivot.neg)
+      if pivot is None:
+        print confl.__str__()
+        print  self.max_decision_level(nlits)
+        print map(str,nlits)
+        print map(lambda x: str(x.neg), confl.lits)
+        print self.trail
+        assert False
+      print map(str,nlits)
+      nlits = self.resolution(pivot, nlits, pivot.neg.reason.lits)
+      max_level = self.max_decision_level(nlits)
 
-    while Utils.is_null(nlits):
-      if self.trail.size() != 0:
-        p, r = self.trail.pop_trail()
-        if p is None:
-          return None
-      else:
-        return None
+    print map(str,nlits)
+    assert Utils.is_null(nlits)
+    assert not Utils.has_duplicate_lits(nlits)
+    assert not Utils.is_tautology(nlits)
+    #Create contraint
+    return nlits
 
-
-    
-    c = self.create_constr(nlits)
-    self.learnt.append(c)
-    c.learnt = True
-    
-    self.trail.pop_till_unit()
-
-    if c.is_unit():
-      unit_lit = c.get_unit_lit()
-      self.trail.enqueue(unit_lit, c)
-    else:
-      free_lit = c.get_free_lit()
-      self.trail.enqueue(free_lit, None)
-    
-    return c
-
-
-  def has_falsidied_literal(self,lits):
-    for l in lits:
-      if l.is_falsified():
-        return True
-    return False
-
-  def has_free_literal(self,lits):
-    for l in lits:
-      if l.is_free():
-        return True
-    return False
+  def max_decision_level(self,lits):
+    ls = map(lambda x: -1 if x.neg.reason is None else x.neg.decision_level, lits)
+    print 'ls', ls
+    return max(ls)
 
   def create_constr(self, lits):
     l = len(lits)
@@ -447,19 +491,20 @@ class Solver:
     else:
       return Clause(lits)
 
-  def simple_resolution(self,lits1,lits2):
+  def find_pivot(self,lits,level):
+    for l in lits:
+      if l.neg.decision_level == level and l.neg.reason is not None:
+        return l
+    return None
+
+  def resolution(self,pivot,lits1,lits2):
     #print map(str,lits1), map(str,lits2)
     nlits = []
-    pivot = None
-    #find pivot
-    for l in lits1:
-      if l.neg in lits2:
-        pivot = l
-        break
-
     if pivot is None:
       assert False
-
+    print 'pivot', pivot
+    print 'lits1', map(str,lits1)
+    print 'lits2', map(str,lits2)
     for l in lits1 + lits2:
       if l in nlits:
         continue
@@ -474,7 +519,7 @@ class Solver:
 
   def propagate(self):
     #while there are still un propagated lits
-    while self.trail.head_length() > 0:
+    while self.trail.size_of_head() > 0:
       p = self.trail.inc_head()
       confl = p.propagate(self.trail)
       if confl is not None: # propagate lit and return conflict if it breaks
