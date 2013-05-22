@@ -4,7 +4,6 @@ from solver import Solver
 def main(argv):
   inputfile = argv[1]
   formula = parse_to_formula(inputfile)
-  print formula.__str__()
   solver = Solver(formula)
   trail = solver.dpll()
   if trail is not None:

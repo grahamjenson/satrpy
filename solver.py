@@ -122,6 +122,9 @@ class Literal:
 
 ######################Contraints
 class Constraint:
+  def __init__(self):
+    self.learnt = False
+
   def __str__(self):
     tmp = "["
     delim = ''
@@ -129,6 +132,8 @@ class Constraint:
       tmp+= delim + lit.__str__()      
       delim = ' ,'
     tmp += "]"
+    if self.learnt:
+      tmp += '[L]'
     return tmp
 
   def is_unit_clause(self):
@@ -151,6 +156,7 @@ class UnitClause(Constraint):
 
   def __init__(self,lits):
     assert len(lits) == 1
+    Constraint.__init__(self)
     self.lits = lits
     self.lits[0].neg.add_watch(self)
 
@@ -163,6 +169,7 @@ class UnitClause(Constraint):
 
 class Clause(Constraint):
   def __init__(self,lits):
+    Constraint.__init__(self)
     #sort lits to make free lits at the front
     nlits = []
     for l in lits:
@@ -170,7 +177,6 @@ class Clause(Constraint):
         nlits = [l] + nlits
       else:
         nlits = nlits + [l]
-
     self.lits = nlits
     #clause [1,2,3,4]
     #watch -1 and -2, if they get assigned we
@@ -270,6 +276,14 @@ class Trail:
           return
       self.pop_trail()
 
+  def pop_till_decision(self):
+    while self.size() != 0:
+      p, reason = self.pop_trail()
+      if reason is None:
+        return
+      
+
+
   def size(self):
     return len(self._lit_order)
 
@@ -366,19 +380,18 @@ class Solver:
     return self.trail
 
   def analyze(self, confl):
-    #print 'analyze conflist', confl.__str__()
+    
     p, reason = self.trail.pop_trail()
     if p is None:
       return None
     #print 'p', p
-    #print 'reason', reason.__str__()
+    
     if reason is None:
       self.trail.enqueue(p.neg, confl)
       return confl
     else:
       nlits = self.simple_resolution(confl.lits, reason.lits)
 
-    #print 'new conflict', map(str,nlits)
     #print 'trail', self.trail.__str__()
 
     while Utils.is_null(nlits):
@@ -388,8 +401,8 @@ class Solver:
       if self.trail.size() != 0:
         p, r = self.trail.pop_trail()
         if p is None:
+          #print 'p is none', r.__str__()
           return None
-        #print 'poped', p , reason.__str__()
       else:
         #print 'ran out nlits', map(str,nlits)
         #print 'ran out confl', confl.__str__()
@@ -402,9 +415,17 @@ class Solver:
     
     c = self.create_constr(nlits)
     self.learnt.append(c)
+    c.learnt = True
+    
 
     if c.is_unit_clause():
       self.trail.pop_till_unit()
+      #print 'created unit clause'
+      #print 'analyze conflist', confl.__str__()
+      #print 'reason', reason.__str__()
+      #print 'new clause', c.__str__()
+    else:
+      self.trail.pop_till_decision()
 
     if c.is_unit():
       unit_lit = c.get_unit_lit()
@@ -414,6 +435,9 @@ class Solver:
       free_lit = c.get_free_lit()
       #print 'free lit', free_lit
       self.trail.enqueue(free_lit, None)
+    
+    self.trail.pop_till_unit()
+
     return c
 
 
@@ -443,23 +467,21 @@ class Solver:
   def simple_resolution(self,lits1,lits2):
     #print map(str,lits1), map(str,lits2)
     nlits = []
-    neg = False
+    pivot = None
+    #find pivot
     for l in lits1:
-      if l in nlits:
-        continue
       if l.neg in lits2:
-        neg = True
-      else:
-        nlits.append(l)
-    
-    if not neg:
+        pivot = l
+        break
+
+    if pivot is None:
       assert False
 
-    for l in lits2:
+    for l in lits1 + lits2:
       if l in nlits:
         continue
-      if l.neg in lits1:
-        neg = True
+      elif l is pivot or l.neg is pivot:
+        continue
       else:
         nlits.append(l)
 
