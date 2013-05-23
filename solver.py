@@ -212,6 +212,7 @@ class Clause(Constraint):
       #print map(lambda x: x.is_free(), self.lits)
       assert False
 
+    print 'c', self.__str__()
     self.lits[0].neg.add_watch(self)
     self.lits[1].neg.add_watch(self)
 
@@ -364,9 +365,12 @@ class Trail:
     else:
       self._head.append(p)
       p.reason = constr
+
       if constr is None:
         self._level += 1
-      
+      else:
+        assert constr.is_unit()
+
       p.decision_level = self._level
       p.assign()
       return True
@@ -416,11 +420,11 @@ class Solver:
           return None
         
         self.trail.clear_head()
-        while Utils.is_null(nlits):
-            self.trail.pop_till_decision()
+        while not Utils.has_free_lit(nlits):
+          self.trail.pop_till_decision()
 
        
-        
+        print 'new constr', map(str,nlits)
         nconfl = self.create_constr(nlits)
         self.learnt.append(nconfl)
         nconfl.learnt = True
@@ -431,7 +435,10 @@ class Solver:
           self.trail.pop_till_unit()
 
         free_lit = nconfl.get_free_lit()
-        self.trail.enqueue(free_lit, nconfl)
+        if nconfl.is_unit():
+          self.trail.enqueue(free_lit, nconfl)
+        else:
+          self.trail.enqueue(free_lit, None)
 
       else:
         alit = self.trail.decide()
@@ -449,14 +456,13 @@ class Solver:
     nlits = [] + confl.lits
     max_level = self.max_decision_level(nlits)
     seen = []
+    print max_level
+    print self.trail.decision_level()
     assert max_level >= self.trail.decision_level()
+
     while max_level >= self.trail.decision_level():
       print  max_level
       pivot = self.find_pivot(nlits,max_level)
-      if pivot in seen:
-        break
-      seen.append(pivot)
-      seen.append(pivot.neg)
       if pivot is None:
         print confl.__str__()
         print  self.max_decision_level(nlits)
@@ -464,19 +470,30 @@ class Solver:
         print map(lambda x: str(x.neg), confl.lits)
         print self.trail
         assert False
+
+      if pivot in seen:
+        break
+      seen.append(pivot)
+      seen.append(pivot.neg)
+      if pivot.neg.reason is None:
+        continue
       print map(str,nlits)
       nlits = self.resolution(pivot, nlits, pivot.neg.reason.lits)
       max_level = self.max_decision_level(nlits)
 
+    print self.max_decision_level(nlits)
+    print self.trail.decision_level()
     print map(str,nlits)
-    assert Utils.is_null(nlits)
+    print self.trail.__str__()
+
+    #assert Utils.is_null(nlits)
     assert not Utils.has_duplicate_lits(nlits)
     assert not Utils.is_tautology(nlits)
     #Create contraint
     return nlits
 
   def max_decision_level(self,lits):
-    ls = map(lambda x: -1 if x.neg.reason is None else x.neg.decision_level, lits)
+    ls = map(lambda x: x.neg.decision_level, lits)
     print 'ls', ls
     return max(ls)
 
@@ -493,7 +510,7 @@ class Solver:
 
   def find_pivot(self,lits,level):
     for l in lits:
-      if l.neg.decision_level == level and l.neg.reason is not None:
+      if l.neg.decision_level == level:
         return l
     return None
 
@@ -502,6 +519,8 @@ class Solver:
     nlits = []
     if pivot is None:
       assert False
+    assert pivot in lits1
+    assert pivot.neg in lits2
     print 'pivot', pivot
     print 'lits1', map(str,lits1)
     print 'lits2', map(str,lits2)
