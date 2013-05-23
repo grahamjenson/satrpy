@@ -1,7 +1,5 @@
-###########Utitlitis
-
+###########Utils
 class Utils:
-
   @staticmethod
   def has_duplicate_lits(nlits):
     lits = []
@@ -55,9 +53,8 @@ class Utils:
       if l.is_free():
         return l
     assert False
+
 #################VARIABELES
-
-
 class Variable:
   def __init__(self,name):
     self.pos = Literal(self, True)
@@ -65,7 +62,6 @@ class Variable:
     self.neg.neg = self.pos
     self.pos.neg = self.neg
     self.name = name
-
 
 class Literal:
   def __init__(self, var, pos):
@@ -97,7 +93,6 @@ class Literal:
   def unassign(self):
     assert self.assigned == True
     assert self.neg.assigned == False
-    ##print 'u', self.__str__()
     self.assigned = False
 
   def is_free(self):
@@ -122,7 +117,6 @@ class Literal:
       w = tmp.pop()
       if not w.propagate(trail,self):
         self.watches += tmp
-        ##print 'l', w.__str__()
         return w
     return None
 
@@ -143,7 +137,6 @@ class Literal:
     else:
       tmp += '[?]'
     return tmp 
-
 
 ######################Contraints
 class Constraint:
@@ -176,9 +169,7 @@ class Constraint:
   def get_free_lit(self):
     return Utils.get_free_lit(self.lits)
 
-
 class UnitClause(Constraint):
-
   def __init__(self,lits):
     assert len(lits) == 1
     Constraint.__init__(self)
@@ -191,11 +182,9 @@ class UnitClause(Constraint):
   def is_unit_clause(self):
     return True
   
-
 class Clause(Constraint):
   def __init__(self,lits):
     Constraint.__init__(self)
-    #sort lits to make free lits at the front
     nlits = []
     for l in lits:
       if l.is_free():
@@ -203,16 +192,9 @@ class Clause(Constraint):
       else:
         nlits = nlits + [l]
     self.lits = nlits
-    #clause [1,2,3,4]
-    #watch -1 and -2, if they get assigned we
-    #move -1 to the beack and watch
-
     #should be unit
-    if self.lits[0].is_falsified():
-      ##print map(lambda x: x.is_free(), self.lits)
-      assert False
+    assert not self.lits[0].is_falsified()
 
-    #print 'c', self.__str__()
     self.lits[0].neg.add_watch(self)
     self.lits[1].neg.add_watch(self)
 
@@ -236,17 +218,11 @@ class Clause(Constraint):
         self.lits[1].neg.add_watch(self)
         return True; # not unit yet as 
 
-    assert self.lits[1].is_falsified();
-    # the clause is now either unit or null
-    if not (self.is_unit() or self.is_null()):
-      ##print 'not null or unit', self.__str__()
-      assert False
-
+    assert self.lits[1].is_falsified()
+    assert (self.is_unit() or self.is_null())
     p.add_watch(self)
     return trail.enqueue(self.lits[0],self)
 
-
-########################FORMULA
 class Formula:
   def __init__(self,clauses, variables):
     self.clauses = clauses
@@ -262,7 +238,7 @@ class Formula:
     return tmp 
 
 
-#######################
+#######################TRAIL
 from rheapq import heappush
 from rheapq import heappop
 
@@ -321,8 +297,6 @@ class Trail:
       if reason is None:
         break
     return 
-
-
 
   def pop_trail(self):
     if self.peek().reason is not None:
@@ -395,7 +369,6 @@ class Trail:
 
 #########################Solver
 class Solver:
-  
   def __init__(self,formula):
     self.trail = Trail()
     self.formula = formula
@@ -411,7 +384,6 @@ class Solver:
     self.trail.enqueue(alit,None)
 
     while self.trail.size_of_head() > 0:
-      #print self.trail
       assert self.trail.size_of_head() == 1
       confl = self.propagate()
       if confl is not None:
@@ -421,17 +393,15 @@ class Solver:
         
         self.trail.clear_head()
         while not Utils.has_free_lit(nlits):
+          if self.trail.decision_level() == 0:
+            return None
           self.trail.pop_till_decision()
 
-       
-        #print 'new constr', map(str,nlits)
         nconfl = self.create_constr(nlits)
         self.learnt.append(nconfl)
         nconfl.learnt = True
         
-        #print 'gen', nconfl.__str__()
-
-        if nconfl.is_unit_clause():
+        if nconfl.is_unit_clause() or len(self.learnt) % 100 == 0:
           self.trail.pop_till_unit()
 
         free_lit = nconfl.get_free_lit()
@@ -447,63 +417,43 @@ class Solver:
     return self.trail
 
   def analyze(self, confl):
-    if not confl.is_null():
-      #print confl.__str__()
-      assert False;
-    #print 'analyze', confl.__str__()
-    #print 'trail', self.trail.__str__()
+    assert confl.is_null()
 
     nlits = [] + confl.lits
     max_level = self.max_decision_level(nlits)
     seen = []
-    #print max_level
-    #print self.trail.decision_level()
     assert max_level >= self.trail.decision_level()
 
     while max_level >= self.trail.decision_level():
-      #print  max_level
       pivot = self.find_pivot(nlits,max_level)
-      if pivot is None:
-        #print confl.__str__()
-        #print  self.max_decision_level(nlits)
-        #print map(str,nlits)
-        #print map(lambda x: str(x.neg), confl.lits)
-        #print self.trail
-        assert False
+      assert pivot is not None
 
       if pivot in seen:
         break
+
       seen.append(pivot)
       seen.append(pivot.neg)
       if pivot.neg.reason is None:
         continue
-      #print map(str,nlits)
       nlits = self.resolution(pivot, nlits, pivot.neg.reason.lits)
       max_level = self.max_decision_level(nlits)
 
-    #print self.max_decision_level(nlits)
-    #print self.trail.decision_level()
-    #print 'new lits', map(str,nlits)
-    #print 'trail', self.trail.__str__()
-
-    #assert Utils.is_null(nlits)
     assert not Utils.has_duplicate_lits(nlits)
-    #assert not Utils.is_tautology(nlits)
     #Create contraint
     return nlits
 
   def max_decision_level(self,lits):
-    ls = map(lambda x: x.neg.decision_level, lits)
-    #print 'ls', ls
-    return max(ls)
+    m = -1
+    for l in lits:
+      if l.neg.decision_level > m:
+        m = l.neg.decision_level
+    return m
 
   def create_constr(self, lits):
     l = len(lits)
     if l == 0:
-      ##print 'conflict'
       return None
     elif l == 1:
-      ##print 'unit', map(str,lits)
       return UnitClause(lits)
     else:
       return Clause(lits)
@@ -515,15 +465,11 @@ class Solver:
     return None
 
   def resolution(self,pivot,lits1,lits2):
-    ##print map(str,lits1), map(str,lits2)
     nlits = []
-    if pivot is None:
-      assert False
+    assert pivot is not None
     assert pivot in lits1
     assert pivot.neg in lits2
-    #print 'pivot', pivot
-    #print 'lits1', map(str,lits1)
-    #print 'lits2', map(str,lits2)
+
     for l in lits1 + lits2:
       if l in nlits:
         continue
@@ -533,7 +479,6 @@ class Solver:
         nlits.append(l)
         l.inc_heur()
         l.neg.inc_heur()
-
     return nlits
 
   def propagate(self):
