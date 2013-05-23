@@ -97,7 +97,7 @@ class Literal:
   def unassign(self):
     assert self.assigned == True
     assert self.neg.assigned == False
-    #print 'u', self.__str__()
+    ##print 'u', self.__str__()
     self.assigned = False
 
   def is_free(self):
@@ -122,7 +122,7 @@ class Literal:
       w = tmp.pop()
       if not w.propagate(trail,self):
         self.watches += tmp
-        #print 'l', w.__str__()
+        ##print 'l', w.__str__()
         return w
     return None
 
@@ -209,10 +209,10 @@ class Clause(Constraint):
 
     #should be unit
     if self.lits[0].is_falsified():
-      #print map(lambda x: x.is_free(), self.lits)
+      ##print map(lambda x: x.is_free(), self.lits)
       assert False
 
-    print 'c', self.__str__()
+    #print 'c', self.__str__()
     self.lits[0].neg.add_watch(self)
     self.lits[1].neg.add_watch(self)
 
@@ -239,7 +239,7 @@ class Clause(Constraint):
     assert self.lits[1].is_falsified();
     # the clause is now either unit or null
     if not (self.is_unit() or self.is_null()):
-      #print 'not null or unit', self.__str__()
+      ##print 'not null or unit', self.__str__()
       assert False
 
     p.add_watch(self)
@@ -327,7 +327,7 @@ class Trail:
   def pop_trail(self):
     if self.peek().reason is not None:
       if self.peek().reason.is_unit_clause():
-        #print self.__str__()
+        ##print self.__str__()
         return None,None
 
     p = self._lit_order.pop()
@@ -341,13 +341,13 @@ class Trail:
     return p, constr
 
   def clear_head(self):
-    #print 'clear head', self.__str__()
+    ##print 'clear head', self.__str__()
     for p in self._head:
       p.reason = None
       p.unassign()
       p.decision_level = -1
     self._head = []
-    #print 'after clear head', self.__str__()
+    ##print 'after clear head', self.__str__()
 
   def inc_head(self):
     p = self._head.pop()
@@ -355,7 +355,7 @@ class Trail:
     return p
 
   def enqueue(self,p,constr):
-    #print 'enqueue', p.__str__(), 'because', constr.__str__()
+    ##print 'enqueue', p.__str__(), 'because', constr.__str__()
     if p is None:
       return True
     if p.is_falsified():
@@ -411,7 +411,7 @@ class Solver:
     self.trail.enqueue(alit,None)
 
     while self.trail.size_of_head() > 0:
-      print self.trail
+      #print self.trail
       assert self.trail.size_of_head() == 1
       confl = self.propagate()
       if confl is not None:
@@ -424,12 +424,12 @@ class Solver:
           self.trail.pop_till_decision()
 
        
-        print 'new constr', map(str,nlits)
+        #print 'new constr', map(str,nlits)
         nconfl = self.create_constr(nlits)
         self.learnt.append(nconfl)
         nconfl.learnt = True
         
-        print 'gen', nconfl.__str__()
+        #print 'gen', nconfl.__str__()
 
         if nconfl.is_unit_clause():
           self.trail.pop_till_unit()
@@ -448,27 +448,27 @@ class Solver:
 
   def analyze(self, confl):
     if not confl.is_null():
-      print confl.__str__()
+      #print confl.__str__()
       assert False;
-    print 'analyze', confl.__str__()
-    print 'trail', self.trail.__str__()
+    #print 'analyze', confl.__str__()
+    #print 'trail', self.trail.__str__()
 
     nlits = [] + confl.lits
     max_level = self.max_decision_level(nlits)
     seen = []
-    print max_level
-    print self.trail.decision_level()
+    #print max_level
+    #print self.trail.decision_level()
     assert max_level >= self.trail.decision_level()
 
     while max_level >= self.trail.decision_level():
-      print  max_level
+      #print  max_level
       pivot = self.find_pivot(nlits,max_level)
       if pivot is None:
-        print confl.__str__()
-        print  self.max_decision_level(nlits)
-        print map(str,nlits)
-        print map(lambda x: str(x.neg), confl.lits)
-        print self.trail
+        #print confl.__str__()
+        #print  self.max_decision_level(nlits)
+        #print map(str,nlits)
+        #print map(lambda x: str(x.neg), confl.lits)
+        #print self.trail
         assert False
 
       if pivot in seen:
@@ -477,33 +477,33 @@ class Solver:
       seen.append(pivot.neg)
       if pivot.neg.reason is None:
         continue
-      print map(str,nlits)
+      #print map(str,nlits)
       nlits = self.resolution(pivot, nlits, pivot.neg.reason.lits)
       max_level = self.max_decision_level(nlits)
 
-    print self.max_decision_level(nlits)
-    print self.trail.decision_level()
-    print map(str,nlits)
-    print self.trail.__str__()
+    #print self.max_decision_level(nlits)
+    #print self.trail.decision_level()
+    #print 'new lits', map(str,nlits)
+    #print 'trail', self.trail.__str__()
 
     #assert Utils.is_null(nlits)
     assert not Utils.has_duplicate_lits(nlits)
-    assert not Utils.is_tautology(nlits)
+    #assert not Utils.is_tautology(nlits)
     #Create contraint
     return nlits
 
   def max_decision_level(self,lits):
     ls = map(lambda x: x.neg.decision_level, lits)
-    print 'ls', ls
+    #print 'ls', ls
     return max(ls)
 
   def create_constr(self, lits):
     l = len(lits)
     if l == 0:
-      #print 'conflict'
+      ##print 'conflict'
       return None
     elif l == 1:
-      #print 'unit', map(str,lits)
+      ##print 'unit', map(str,lits)
       return UnitClause(lits)
     else:
       return Clause(lits)
@@ -515,15 +515,15 @@ class Solver:
     return None
 
   def resolution(self,pivot,lits1,lits2):
-    #print map(str,lits1), map(str,lits2)
+    ##print map(str,lits1), map(str,lits2)
     nlits = []
     if pivot is None:
       assert False
     assert pivot in lits1
     assert pivot.neg in lits2
-    print 'pivot', pivot
-    print 'lits1', map(str,lits1)
-    print 'lits2', map(str,lits2)
+    #print 'pivot', pivot
+    #print 'lits1', map(str,lits1)
+    #print 'lits2', map(str,lits2)
     for l in lits1 + lits2:
       if l in nlits:
         continue
